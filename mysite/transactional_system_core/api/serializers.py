@@ -10,8 +10,8 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         with transaction.atomic():
-            from_wallet: Wallet = validated_data['from_wallet']
-            to_wallet: Wallet = validated_data['to_wallet']
+            from_wallet: Wallet = Wallet.objects.select_for_update().get(pk=validated_data['from_wallet'].pk)
+            to_wallet: Wallet = Wallet.objects.select_for_update().get(pk=validated_data['to_wallet'].pk)
 
             if from_wallet.balance < validated_data['transfer_amount']:
                 raise ValueError("Insufficient funds")
@@ -22,14 +22,14 @@ class TransactionSerializer(serializers.ModelSerializer):
                 from_wallet.balance -= transaction_.transfer_amount
                 to_wallet.balance += transaction_.transfer_amount
             else:
-                admin_wallet: Wallet = Wallet.objects.get(pk=1)
+                admin_wallet: Wallet = Wallet.objects.select_for_update().get(pk=1)
                 comission = (validated_data['transfer_amount'] * Decimal('0.1')).quantize(Decimal('1.00'))
                 validated_data['transfer_amount'] -= comission
 
                 transaction_ = Transaction(
                     **validated_data
                 )
-                from_wallet.balance -=  transaction_.transfer_amount
+                from_wallet.balance -= transaction_.transfer_amount
                 to_wallet.balance += transaction_.transfer_amount
 
                 comission_transaction = Transaction(
